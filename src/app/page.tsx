@@ -16,7 +16,8 @@ type Account = {
 
 type AccountEvent = {
   id: string;
-  game_account_id: string;
+  game_account_id: string | null;
+  account_label: string | null;
   event_type: string;
   message: string;
   created_at: string;
@@ -101,7 +102,7 @@ export default function Home() {
         .order('created_at', { ascending: false }),
 
       supabase.from('game_account_events')
-        .select('id,game_account_id,event_type,message,created_at')
+        .select('id,game_account_id,account_label,event_type,message,created_at')
         .order('created_at', { ascending: false }),
     ]);
 
@@ -268,10 +269,6 @@ export default function Home() {
     setBusy(false);
   }
 
-  const selectedEvents = events.filter(
-    item => item.game_account_id === selectedAccount
-  );
-
   return (
     <main className="min-h-screen bg-slate-100 p-4">
       <div className="mx-auto max-w-3xl space-y-5">
@@ -418,7 +415,7 @@ export default function Home() {
                 </p>
 
                 <p className="mt-2 text-xs text-amber-700">
-                  Lựa chọn bật/tắt chưa khởi chạy tác vụ chăm sóc game thật.
+                  Lựa chọn bật/tắt hiện chưa khởi chạy tác vụ chăm sóc game thật.
                 </p>
 
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -434,7 +431,7 @@ export default function Home() {
                     onClick={() => setSelectedAccount(account.id)}
                     className="rounded-lg border px-3 py-2 text-sm"
                   >
-                    Xem lịch sử
+                    Chọn tài khoản
                   </button>
 
                   <button
@@ -460,28 +457,24 @@ export default function Home() {
             Lịch sử hoạt động tài khoản
           </h2>
 
-          <select
-            className="mb-4 w-full rounded-lg border p-3"
-            value={selectedAccount}
-            onChange={e => setSelectedAccount(e.target.value)}
-          >
-            <option value="">-- Chọn tài khoản --</option>
-            {accounts.map(account => (
-              <option key={account.id} value={account.id}>
-                {account.label}
-              </option>
-            ))}
-          </select>
+          <p className="mb-4 text-sm text-slate-500">
+            Hiển thị hoạt động của tất cả tài khoản, kể cả tài khoản đã xóa.
+          </p>
 
-          {selectedEvents.length === 0 && (
+          {events.length === 0 && (
             <p className="text-sm text-slate-500">
               Chưa có lịch sử hoạt động.
             </p>
           )}
 
-          {selectedEvents.map(event => (
+          {events.map(event => (
             <div key={event.id} className="mb-3 rounded-xl border p-3">
-              <p className="font-medium">{event.message}</p>
+              <p className="text-xs font-semibold text-emerald-700">
+                {event.account_label || 'Tài khoản đã xóa'}
+              </p>
+
+              <p className="mt-1 font-medium">{event.message}</p>
+
               <p className="mt-1 text-xs text-slate-500">
                 {new Date(event.created_at).toLocaleString('vi-VN')}
               </p>
