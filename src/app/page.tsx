@@ -9,6 +9,17 @@ type Account = {
   label: string;
   game_uid: string | null;
   status: string;
+  auth_status: string;
+  auto_enabled: boolean;
+  auth_error_message: string | null;
+};
+
+type AccountEvent = {
+  id: string;
+  game_account_id: string;
+  event_type: string;
+  message: string;
+  created_at: string;
 };
 
 type Package = {
@@ -40,6 +51,7 @@ export default function Home() {
   const supabase = createClient();
 
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [events, setEvents] = useState<AccountEvent[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
   const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -65,9 +77,9 @@ export default function Home() {
 
     const userId = userData.user.id;
 
-    const [a, p, w, d, s] = await Promise.all([
+    const [a, p, w, d, s, ev] = await Promise.all([
       supabase.from('game_accounts')
-        .select('id,label,game_uid,status')
+        .select('id,label,game_uid,status,auth_status,auto_enabled,auth_error_message')
         .order('created_at', { ascending: false }),
 
       supabase.from('service_packages')
@@ -87,6 +99,10 @@ export default function Home() {
       supabase.from('nurturing_subscriptions')
         .select('id,package_name,duration_days,total_paid,starts_at,ends_at,status')
         .order('created_at', { ascending: false }),
+
+      supabase.from('game_account_events')
+        .select('id,game_account_id,event_type,message,created_at')
+        .order('created_at', { ascending: false }),
     ]);
 
     if (a.error) {
@@ -94,18 +110,22 @@ export default function Home() {
       return;
     }
 
-    if (p.error || d.error || s.error) {
-      setMessage('Lỗi tải dữ liệu. Hãy kiểm tra quyền truy cập Supabase.');
+    if (p.error || d.error || s.error || ev.error) {
+      setMessage(
+        'Lỗi tải dữ liệu: ' +
+        (p.error?.message || d.error?.message || s.error?.message || ev.error?.message)
+      );
       return;
     }
 
-    setAccounts(a.data || []);
+    setAccounts((a.data || []) as Account[]);
+    setEvents((ev.data || []) as AccountEvent[]);
     setPackages((p.data || []) as Package[]);
     setBalance(Number(w.data?.balance || 0));
     setDeposits((d.data || []) as Deposit[]);
     setSubscriptions((s.data || []) as Subscription[]);
 
-    if (!selectedAccount && a.data?.length) {
+    if (a.data?.length && !a.data.some(x => x.id === selectedAccount)) {
       setSelectedAccount(a.data[0].id);
     }
 
@@ -133,10 +153,12 @@ export default function Home() {
       label: email.trim(),
       game_uid: uid.trim() || null,
       status: 'inactive',
+      auth_status: 'not_linked',
+      auto_enabled: false,
     });
 
     if (error) {
-      setMessage('Lỗi: ' + error.message);
+      setMessage('Lỗi thêm tài khoản: ' + error.message);
     } else {
       setEmail('');
       setUid('');
@@ -155,11 +177,37 @@ export default function Home() {
       .delete()
       .eq('id', id);
 
-    if (error) setMessage('Lỗi: ' + error.message);
-    else {
+    if (error) {
+      setMessage('Lỗi: ' + error.message);
+    } else {
       setMessage('Đã xóa tài khoản.');
+      if (selectedAccount === id) setSelectedAccount('');
       await loadData();
     }
+  }
+
+  async function toggleAuto(account: Account) {
+    const nextValue = !account.auto_enabled;
+
+    setBusy(true);
+
+    const { error } = await supabase
+      .from('game_accounts')
+      .update({ auto_enabled: nextValue })
+      .eq('id', account.id);
+
+    if (error) {
+      setMessage('Không cập nhật được: ' + error.message);
+    } else {
+      setMessage(
+        nextValue
+          ? 'Đã lưu lựa chọn bật chế độ tự động.'
+          : 'Đã lưu lựa chọn tắt chế độ tự động.'
+      );
+      await loadData();
+    }
+
+    setBusy(false);
   }
 
   async function createDeposit(e: React.FormEvent) {
@@ -192,7 +240,7 @@ export default function Home() {
 
   async function buyPackage(packageId: string, packageName: string) {
     if (!selectedAccount) {
-      setMessage('Bạn cần thêm tài khoản game trước.');
+      setMessage('Bạn cần chọn tài khoản game trước.');
       return;
     }
 
@@ -220,6 +268,10 @@ export default function Home() {
     setBusy(false);
   }
 
+  const selectedEvents = events.filter(
+    item => item.game_account_id === selectedAccount
+  );
+
   return (
     <main className="min-h-screen bg-slate-100 p-4">
       <div className="mx-auto max-w-3xl space-y-5">
@@ -228,6 +280,9 @@ export default function Home() {
           <h1 className="text-3xl font-bold">DEW TOOL</h1>
           <p className="mt-2 text-green-100">
             Hệ thống quản lý dịch vụ Hoa Viên
+          </p>
+          <p className="mt-2 text-xs text-green-200">
+            Quản lý tài khoản - Ví tiền - Gói dịch vụ
           </p>
         </header>
 
@@ -246,7 +301,7 @@ export default function Home() {
             onClick={loadData}
             className="rounded-lg border px-4 py-2 text-sm"
           >
-            Làm mới số dư
+            Làm mới dữ liệu
           </button>
         </section>
 
@@ -273,7 +328,6 @@ export default function Home() {
           </form>
 
           <p className="mt-3 text-xs text-slate-500">
-            Sau khi tạo yêu cầu, bạn sẽ nhận được mã chuyển khoản.
             Ví chỉ được cộng tiền khi Admin xác nhận giao dịch.
           </p>
         </section>
@@ -323,31 +377,116 @@ export default function Home() {
 
             <button
               disabled={busy}
-              className="rounded-lg bg-green-700 px-5 py-3 text-white"
+              className="w-full rounded-lg bg-green-700 px-5 py-3 text-white"
             >
               Thêm tài khoản
             </button>
           </form>
 
+          <p className="mt-3 text-xs text-slate-500">
+            Tài khoản mới thêm chưa được xác thực với máy chủ game.
+          </p>
+
           <div className="mt-4 space-y-3">
             {accounts.map(account => (
-              <div key={account.id} className="rounded-xl border p-3">
+              <div key={account.id} className="rounded-xl border p-4">
                 <p className="font-semibold">{account.label}</p>
+
                 <p className="text-sm text-slate-500">
                   UID: {account.game_uid || 'Chưa có'}
                 </p>
-                <p className="text-sm text-amber-600">
-                  Chưa xác thực với game
+
+                <p className="mt-2 text-sm">
+                  Xác thực: {
+                    account.auth_status === 'linked' ? 'Đã xác thực' :
+                    account.auth_status === 'checking' ? 'Đang kiểm tra' :
+                    account.auth_status === 'error' ? 'Lỗi kết nối' :
+                    'Chưa xác thực'
+                  }
                 </p>
-                <button
-                  onClick={() => deleteAccount(account.id)}
-                  className="mt-2 rounded-lg border border-red-300 px-3 py-2 text-sm text-red-600"
-                >
-                  Xóa tài khoản
-                </button>
+
+                {account.auth_error_message && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {account.auth_error_message}
+                  </p>
+                )}
+
+                <p className="mt-1 text-sm">
+                  Chế độ tự động: {
+                    account.auto_enabled ? 'Đã bật lựa chọn' : 'Đang tắt'
+                  }
+                </p>
+
+                <p className="mt-2 text-xs text-amber-700">
+                  Lựa chọn bật/tắt chưa khởi chạy tác vụ chăm sóc game thật.
+                </p>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    disabled={busy}
+                    onClick={() => toggleAuto(account)}
+                    className="rounded-lg bg-blue-700 px-3 py-2 text-sm text-white disabled:opacity-50"
+                  >
+                    {account.auto_enabled ? 'Tắt chế độ' : 'Bật chế độ'}
+                  </button>
+
+                  <button
+                    onClick={() => setSelectedAccount(account.id)}
+                    className="rounded-lg border px-3 py-2 text-sm"
+                  >
+                    Xem lịch sử
+                  </button>
+
+                  <button
+                    onClick={() => deleteAccount(account.id)}
+                    className="rounded-lg border border-red-300 px-3 py-2 text-sm text-red-600"
+                  >
+                    Xóa
+                  </button>
+                </div>
               </div>
             ))}
+
+            {accounts.length === 0 && (
+              <p className="text-sm text-slate-500">
+                Chưa có tài khoản game nào.
+              </p>
+            )}
           </div>
+        </section>
+
+        <section className="rounded-2xl bg-white p-5 shadow-sm">
+          <h2 className="mb-3 text-xl font-bold">
+            Lịch sử hoạt động tài khoản
+          </h2>
+
+          <select
+            className="mb-4 w-full rounded-lg border p-3"
+            value={selectedAccount}
+            onChange={e => setSelectedAccount(e.target.value)}
+          >
+            <option value="">-- Chọn tài khoản --</option>
+            {accounts.map(account => (
+              <option key={account.id} value={account.id}>
+                {account.label}
+              </option>
+            ))}
+          </select>
+
+          {selectedEvents.length === 0 && (
+            <p className="text-sm text-slate-500">
+              Chưa có lịch sử hoạt động.
+            </p>
+          )}
+
+          {selectedEvents.map(event => (
+            <div key={event.id} className="mb-3 rounded-xl border p-3">
+              <p className="font-medium">{event.message}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                {new Date(event.created_at).toLocaleString('vi-VN')}
+              </p>
+            </div>
+          ))}
         </section>
 
         <section className="rounded-2xl bg-white p-5 shadow-sm">
