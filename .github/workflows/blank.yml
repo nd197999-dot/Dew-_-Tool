@@ -1,0 +1,37 @@
+
+name: Extract DEW TOOL
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract ZIP
+        run: |
+          set -e
+          ZIP=$(find . -maxdepth 1 -type f -iname "*.zip" | head -n 1)
+          if [ -z "$ZIP" ]; then
+            echo "Không tìm thấy file ZIP"
+            exit 1
+          fi
+          mkdir -p /tmp/dewtool
+          unzip -q "$ZIP" -d /tmp/dewtool
+          PACKAGE=$(find /tmp/dewtool -name package.json -type f | head -n 1)
+          if [ -z "$PACKAGE" ]; then
+            echo "Không tìm thấy package.json"
+            exit 1
+          fi
+          cp -a "$(dirname "$PACKAGE")"/. .
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Extract DEW TOOL source"
+          git push
