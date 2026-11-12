@@ -1,0 +1,33 @@
+
+name: DEW TOOL - Tu dong giai nen
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'DEW-TOOL-foundation-v0.3.0.zip'
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lay ma nguon
+        uses: actions/checkout@v4
+
+      - name: Giai nen ZIP
+        run: |
+          unzip -o DEW-TOOL-foundation-v0.3.0.zip -d .
+          rm DEW-TOOL-foundation-v0.3.0.zip
+
+      - name: Luu ma nguon
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Extract DEW TOOL source code"
+            git push
+          fi
