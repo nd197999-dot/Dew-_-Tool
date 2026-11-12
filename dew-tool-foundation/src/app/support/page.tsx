@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function Support(){return <main className="mx-auto max-w-3xl p-6"><Link href="/" className="text-sm text-emerald-800">← Dashboard</Link><h1 className="mt-4 text-2xl font-bold">Trung tâm hỗ trợ</h1><p className="mt-3 rounded-2xl border bg-white p-5 text-sm text-slate-600">Module ticket sẽ được mở sau khi hoàn thiện bảng hội thoại và quyền nhân viên. Hiện chưa nhận ticket để tránh thất lạc yêu cầu.</p></main>}

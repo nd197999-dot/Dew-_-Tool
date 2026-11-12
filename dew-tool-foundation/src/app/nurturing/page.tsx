@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function Nurturing(){return <main className="mx-auto max-w-3xl p-6"><Link href="/" className="text-sm text-emerald-800">← Dashboard</Link><h1 className="mt-4 text-2xl font-bold">Nuôi tài khoản</h1><p className="mt-3 rounded-2xl border bg-white p-5 text-sm leading-6 text-slate-600">Module quản lý gói và lịch sử đang chờ kết nối Automation Worker. Hiện chưa có Worker xác thực với trò chơi, vì vậy hệ thống không tạo trạng thái chạy giả và không bật tác vụ tự động.</p></main>}
